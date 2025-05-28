@@ -1,0 +1,189 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Votación Método Schulze</title>
+  <style>
+    body { font-family: sans-serif; background: #f4f4f4; padding: 20px; }
+    table { border-collapse: collapse; margin: 20px 0; }
+    th, td { border: 1px solid #999; padding: 8px; text-align: center; }
+    th { background-color: #4F81BD; color: white; }
+    input[type=number], input[type=text] { width: 80px; text-align: center; }
+    button { padding: 8px 12px; margin: 5px 5px 5px 0; cursor: pointer; }
+    .matrix { margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<h2 id="title">Votación con el Método de Schulze</h2>
+<label for="lang">Idioma / Language / Idioma:</label>
+<select id="lang" onchange="updateLanguage()">
+  <option value="es">Español</option>
+  <option value="en">English</option>
+  <option value="pt">Português</option>
+</select>
+
+<p id="desc">Indica tus preferencias (1 = más preferido):</p>
+
+<table id="voting-table">
+  <thead>
+    <tr id="option-header">
+      <th>Votante</th>
+      <th contenteditable="true">Pizza</th>
+      <th contenteditable="true">Hamburguesa</th>
+      <th contenteditable="true">Sushi</th>
+      <th contenteditable="true">Hotdog</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="votes-body"></tbody>
+</table>
+
+<button onclick="agregarVotante()">➕ Votante</button>
+<button onclick="eliminarOpcion()">➖ Última Opción</button>
+<button onclick="agregarOpcion()">➕ Opción</button>
+<button onclick="calcularSchulze()">✅ Calcular Schulze</button>
+
+<div class="result" id="resultado"></div>
+<div class="matrix" id="matrices"></div>
+
+<script>
+let lang = "es";
+const langTexts = {
+  es: {
+    title: "Votación con el Método de Schulze",
+    desc: "Indica tus preferencias (1 = más preferido):",
+    winner: "El ganador es: ",
+    noWinner: "No hay un ganador único según Schulze.",
+    justification: " gana porque vence directa o indirectamente a todos los demás con caminos más fuertes.",
+    net: "Victorias Netas"
+  },
+  en: {
+    title: "Voting with the Schulze Method",
+    desc: "Indicate your preferences (1 = most preferred):",
+    winner: "The winner is: ",
+    noWinner: "There is no clear winner according to Schulze.",
+    justification: " wins because they defeat all others directly or indirectly through strongest paths.",
+    net: "Net Wins"
+  },
+  pt: {
+    title: "Votação com o Método Schulze",
+    desc: "Indique suas preferências (1 = mais preferido):",
+    winner: "O vencedor é: ",
+    noWinner: "Não há vencedor claro segundo Schulze.",
+    justification: " vence porque supera todos os outros diretamente ou por caminhos mais fortes.",
+    net: "Vitórias Líquidas"
+  }
+};
+
+function updateLanguage() {
+  lang = document.getElementById('lang').value;
+  document.getElementById('title').innerText = langTexts[lang].title;
+  document.getElementById('desc').innerText = langTexts[lang].desc;
+}
+
+function agregarVotante() {
+  const tbody = document.getElementById("votes-body");
+  const columnas = document.querySelectorAll("#option-header th").length - 2;
+  const nuevaFila = document.createElement("tr");
+  nuevaFila.innerHTML = `<td><input type="text" value="Votante ${tbody.rows.length + 1}"></td>` +
+    Array.from({length: columnas}).map(() => `<td><input type="number" min="1" value="1"></td>`).join("") +
+    `<td><button onclick="this.closest('tr').remove()">🗑</button></td>`;
+  tbody.appendChild(nuevaFila);
+}
+
+function agregarOpcion() {
+  const headerRow = document.getElementById("option-header");
+  const index = headerRow.cells.length - 1;
+  const nuevaCol = document.createElement("th");
+  nuevaCol.contentEditable = true;
+  nuevaCol.textContent = `Opción ${index}`;
+  headerRow.insertBefore(nuevaCol, headerRow.lastElementChild);
+
+  const filas = document.querySelectorAll("#votes-body tr");
+  filas.forEach(fila => {
+    const nuevaCelda = document.createElement("td");
+    nuevaCelda.innerHTML = `<input type="number" min="1" value="1">`;
+    fila.insertBefore(nuevaCelda, fila.lastElementChild);
+  });
+}
+
+function eliminarOpcion() {
+  const headerRow = document.getElementById("option-header");
+  const totalOpciones = headerRow.cells.length - 2;
+  if (totalOpciones <= 1) return;
+  headerRow.deleteCell(headerRow.cells.length - 2);
+  const filas = document.querySelectorAll("#votes-body tr");
+  filas.forEach(fila => fila.deleteCell(fila.cells.length - 2));
+}
+
+function calcularSchulze() {
+  const headers = Array.from(document.querySelectorAll("#option-header th")).slice(1, -1);
+  const options = headers.map(th => th.textContent.trim());
+  const votos = Array.from(document.querySelectorAll("#votes-body tr")).map(row =>
+    Array.from(row.querySelectorAll("input[type=number]")).map(input => parseInt(input.value))
+  );
+  const n = options.length;
+
+  let d = Array.from({ length: n }, () => Array(n).fill(0));
+  for (const voto of votos) {
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        if (i !== j && voto[i] < voto[j]) {
+          d[i][j]++;
+        }
+      }
+    }
+  }
+
+  let p = Array.from({ length: n }, () => Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (i !== j) {
+        p[i][j] = d[i][j] > d[j][i] ? d[i][j] : 0;
+      }
+    }
+  }
+
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (i !== j) {
+        for (let k = 0; k < n; k++) {
+          if (i !== k && j !== k) {
+            p[j][k] = Math.max(p[j][k], Math.min(p[j][i], p[i][k]));
+          }
+        }
+      }
+    }
+  }
+
+  const netWins = d.map((fila, i) => fila.reduce((sum, val, j) => i !== j && val > d[j][i] ? sum + 1 : sum, 0) -
+                                      fila.reduce((sum, val, j) => i !== j && val < d[j][i] ? sum + 1 : sum, 0));
+
+  let winner = null;
+  for (let i = 0; i < n; i++) {
+    if (p[i].every((val, j) => i === j || val >= p[j][i])) {
+      winner = i;
+      break;
+    }
+  }
+
+  let resultText = `<h4>${langTexts[lang].winner}${winner !== null ? options[winner] : langTexts[lang].noWinner}</h4>`;
+  if (winner !== null) resultText += `<p>${options[winner]}${langTexts[lang].justification}</p>`;
+  resultText += `<h4>${langTexts[lang].net}</h4><table><tr><th>Opción</th><th>${langTexts[lang].net}</th></tr>` +
+    options.map((opt, i) => `<tr><td>${opt}</td><td>${netWins[i]}</td></tr>`).join('') + '</table>';
+
+  const tablaD = `<h4>d[i][j]</h4><table><tr><th></th>${options.map(o => `<th>${o}</th>`).join("")}</tr>` +
+    d.map((fila, i) => `<tr><th>${options[i]}</th>${fila.map(val => `<td>${val}</td>`).join("")}</tr>`).join("") + `</table>`;
+  const tablaP = `<h4>p[i][j]</h4><table><tr><th></th>${options.map(o => `<th>${o}</th>`).join("")}</tr>` +
+    p.map((fila, i) => `<tr><th>${options[i]}</th>${fila.map(val => `<td>${val}</td>`).join("")}</tr>`).join("") + `</table>`;
+
+  document.getElementById("resultado").innerHTML = resultText;
+  document.getElementById("matrices").innerHTML = tablaD + tablaP;
+}
+document.addEventListener('DOMContentLoaded', () => { for (let i = 0; i < 3; i++) agregarVotante(); });
+</script>
+
+</body>
+</html>
